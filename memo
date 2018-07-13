@@ -1,0 +1,202 @@
+⭐️　デバッグ
+pryを使う
+
+  フォームに値をセットしてみる
+    def new
+      @board = Board.new
+      binding.pry
+    end
+
+    >Board
+    >@board.name = "test"
+    =>フォームに値がセットされているのを確認できる
+
+  paramsを確認する
+    def create
+      binding.pry
+    end
+
+    >params
+    >params[:board]
+
+⭐️　htmlでフォームの送信先を確認する
+  開発ツール
+    action（例：boatds） => url
+    method（例：post） => メソッド
+
+  routesはこうなる
+    post boards/ to: board#create
+
+⭐️　タイムゾーン
+  config/application.rbに設定
+    例：　config.time_zone = 'Tokyo'
+
+  フォーマット
+    strftimeメソッドを使う　
+      例：　 created_at.strftime('%y')
+
+    config/initializers/time_formats.rbに定義する
+      例：　 created_at.to_s(:datetime_jp)
+
+⭐️　simple time_formats
+   /n などの開業を<br>タグに変換してくれる
+
+⭐️　bootstrapを使ったlinkボタン
+   <%= link_to '新規作成', new_board_path, class: 'btn btn-outline-dark' %>
+
+⭐️　i18n
+gem 'rails-i18n'を使うとja.ymlを使わなくても基本的な日本語変換ができる
+ja.ymlの変換後の文字はコロンで囲わなくて良い
+
+⭐️　flashを使った情報の送信
+flashはブラウザのcookieに一時的に保存される情報
+からのflashハッシュ(flash = {})
+はすでに定義されている
+
+
+def create
+  board = Board.new(board_params)
+  if board.save
+    flash[:notice] = "『#{board.title}』のコメントを作成しました"
+    redirect_to board
+  else
+    # リダイレクトした時、フラッシュでボードの情報を渡す
+    redirect_to new_board_path, flash: {
+      board: board,
+      error_messages: board.errors.full_messages
+    }
+  end
+
+⭐️　gem
+pryで止めた時にparamsとsqlを見やすくしてくれる
+gemファイルで以下のように設定する
+  gem 'rails-flog', require: 'flog'
+end
+
+⭐️　リダイレクト
+# アソシエーションを設定していると　コメントに紐づくボードの詳細画面にリダイレクトは次のようにかける
+redirect_to comment.board
+
+⭐️　ひとつ前の画面に戻る
+redirect_to :back
+
+⭐️ パーシャル
+変数
+  object: @boardとした場合は、パーシャル名（board）と同名のローカル変数が作成されて変数に渡される　
+  <%#render 'board', object: @board %>
+
+簡略化
+  モデル の オブジェクト の ページ を 表示する場合はさらに簡略に書くことができます
+  このように記述すると_boardパーシャルが使われ引数のインスタンス変数は board という ローカル変数で渡されます
+  <!-- 掲示板メッセージ -->
+  <%= render @board %>
+
+簡略化リスト
+  特定のモデルのリストをrenderの引数に渡すと、自動的にモデル名のビューが使用され、オブジェクトの数だけビューがレンダリングされます
+  以下の場合は、renderの対象はcommentsですので、'comments/_comment.html.erb'がコメントの数だけレンダリングされます
+<%= render @board.comments %>
+
+⭐️ 多対多のチェックボックス（f.collection_check_boxes）
+view
+  <%= f.collection_check_boxes(:tag_ids, Tag.all, :id, :name) do |tag| %>
+    第一引数　:tag_ids
+      チェックボックスで扱う、boarオブジェクトのプロパティー名
+      掲示板とタグのように多対多多のアソシエーションで相手型のモデルと結びつける場合は
+      相手のモデル名_idsというプロパティ名を使用することで関連づけることができる
+    第二引数　:Tag.all
+      タグオブジェクトのリストを取得して渡している
+    第三引数　:id
+      チェックボックスのvalueに設定するプロパティを指定
+      ここでは第二引数で渡したタグオブジェクトのidがセットされる
+    第四引数　:name
+      各チェックボックスのラベル名
+controller
+  private
+  def board_params
+    params.require(:board).permit(:name, :title, :body, tag_ids: [])
+  end
+  ストロングパラメータにこのように記述する
+
+⭐️  ユーザ認証
+has_secure_passwordメソッド
+  railsに標準で備わっている
+  パスワードの暗号化にbcriptというGemを必要とする
+
+ログイン中のユーザを取得
+  application_controller.rb
+
+
+  def current_user
+    return unless session[:user_id]
+    @current_user = User.find_by(id: session[:user_id])
+  end
+
+Userモデル
+  rails g model user name:string password_digest:string
+
+  password_digestカラムはbcriptが暗号化されたパスワードを保存するのに使う
+  別のカラム名にしないように
+
+  この例のnameカラムは重複しないユニークなユーザ名のみ登録できるようにする
+  メールアドレスなどでも良い
+
+  認証の機能を持たせる為にモデル内にhas＿secure＿passwordと記載する
+  # この記述によって以下の機能がユーザモデルに追加される。
+  # password属性(DBにはカラムはできない)
+  # password_confirmation属性(DBにはカラムはできない)
+  # password属性とpassword_confirmation属性をユーザが入力したパスワードを入れSAVEすると
+    Password_digestに暗号化されたパスワードが保存される
+
+sessionsコントローラ
+  ユーザのセッション情報の作成、削除を行うためのコントローラ
+
+  アクション
+    create -> ログインが成功した場合にsession情報にログインユーザのIDを保存する
+              次からのアクセスではこのsession情報のユーザのIDからユーザを検索しログインしているかを判断する
+    destroy ->session情報からユーザIDを削除することでログアウト機能を実装
+
+Homeコントローラ
+  rootのwebページに使用使用
+
+  アクション
+    index　->　トップページを表示する
+
+Userコントローラ
+
+  アクション
+    new -> ユーザ作成フォームを表示
+    create -> フォームから送信されたユーザを作成
+    me -> ログインユーザのマイページを表示
+
+    🌟 日付のフォーマット
+      strftimeメソッドを使う
+        <td><%= board.created_at.strftime('%Y年 %M月　%D日') %></td>
+
+      名前でフォマーットを指定できるようにする
+        ・config/initializers/time_formats.rbというファイルを作成
+        ・作成したフォーマットを定義する
+        ・タイム型のフォーマットの場合はTime::DATE_FORMATSに任意の名前のキーでフォーマットを作成しておく
+        ・（例：　Time::DATE_FORMATS[:datetime_jp] = '%Y年 %m月 %d日）
+
+        <td><%= board.created_at.to_s(:datetime_jp) %></td>
+
+🌟 タイムゾーンの設定
+  config/application.rbに記述します
+
+
+  module App
+    class Application < Rails::Application
+      config.i18n.default_locale = :ja
+      config.time_zone = 'Tokyo'
+    end
+  end
+
+🌟 デバッグ情報をviewに表示する
+<%= debug(params) if Rails.env.development? %>
+
+🌟 gem
+  rails-flog
+  ログのParametersやSQLを整形してくれる
+
+
+
